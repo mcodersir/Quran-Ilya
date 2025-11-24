@@ -143,6 +143,7 @@ const UI_TEXT: Record<string, any> = {
     preview: "Preview",
     tafsirFontLabel: "Tafsir Font",
     showDailyVerse: "Show Daily Verse",
+    skip: "Skip",
     offlineMode: "Offline Mode",
     themeProphets: "Stories of Prophets",
     themeGuidance: "Guidance for Life",
@@ -286,6 +287,7 @@ const UI_TEXT: Record<string, any> = {
     preview: "پیش‌نمایش زنده",
     tafsirFontLabel: "فونت تفسیر",
     showDailyVerse: "نمایش آیه روز",
+    skip: "رد کردن",
     offlineMode: "حالت آفلاین",
     themeProphets: "داستان پیامبران",
     themeGuidance: "راهنمای زندگی",
@@ -429,6 +431,7 @@ const UI_TEXT: Record<string, any> = {
     preview: "معاينة مباشرة",
     tafsirFontLabel: "خط التفسير",
     showDailyVerse: "عرض آية اليوم",
+    skip: "تخطي",
     offlineMode: "وضع غير متصل",
     themeProphets: "قصص الأنبياء",
     themeGuidance: "توجيهات للحياة",
@@ -572,6 +575,7 @@ const UI_TEXT: Record<string, any> = {
     preview: "实时预览",
     tafsirFontLabel: "注释字体",
     showDailyVerse: "显示每日经文",
+    skip: "跳过",
     offlineMode: "离线模式",
     themeProphets: "先知的故事",
     themeGuidance: "生活指南",
@@ -810,8 +814,8 @@ const Onboarding = ({
         );
 
     return (
-        <div className="fixed inset-0 z-[100] bg-white dark:bg-dark-950 flex flex-col">
-            <div className="flex-1 flex flex-col items-center justify-center p-6 max-w-md mx-auto w-full text-center">
+        <div className={`fixed inset-0 z-[100] bg-white dark:bg-dark-950 flex flex-col ${settings.appFont || ''}`}>
+            <div className="flex-1 flex flex-col items-center justify-center p-6 pb-24 max-w-md mx-auto w-full text-center">
                 <div className="mb-8">
                     <div className="w-16 h-16 bg-primary-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary-500/40">
                         <BookOpen size={32} className="text-white" />
@@ -941,11 +945,11 @@ const Onboarding = ({
                 </div>
             </div>
 
-            <div className="p-6 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-dark-950 flex justify-between">
+            <div className="p-6 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-dark-950 flex justify-between fixed bottom-0 left-0 right-0">
                 {step > 1 && (
                     <button onClick={() => setStep(step - 1)} className="px-6 py-3 text-slate-500 font-bold">{t.cancel}</button>
                 )}
-                <div className="flex-1"></div>
+                <button onClick={() => { setSettings(s => ({...s, onboardingComplete: true})); localStorage.setItem('nurai_settings', JSON.stringify({...settings, onboardingComplete: true})); onComplete(); }} className="px-6 py-3 text-slate-400 font-bold">{t.skip}</button>
                 <button 
                     onClick={() => {
                         if(step < 5) setStep(step + 1);
@@ -1015,6 +1019,8 @@ export default function App() {
   const [surahError, setSurahError] = useState(false);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  const settingsSaveTimeout = useRef<NodeJS.Timeout | null>(null);
+  const settingsIdleId = useRef<number | null>(null);
   
   // Browsing Mode
   const [browseMode, setBrowseMode] = useState<'surah' | 'juz'>('surah');
@@ -1277,7 +1283,26 @@ export default function App() {
 
   useEffect(() => {
     if(settings.onboardingComplete) {
-        localStorage.setItem('nurai_settings', JSON.stringify(settings));
+        if (settingsSaveTimeout.current) clearTimeout(settingsSaveTimeout.current);
+        if (settingsIdleId.current && 'cancelIdleCallback' in window) {
+            // @ts-ignore
+            window.cancelIdleCallback(settingsIdleId.current);
+        }
+        const saveFn = () => {
+            settingsSaveTimeout.current = setTimeout(() => {
+                try {
+                    localStorage.setItem('nurai_settings', JSON.stringify(settings));
+                } catch (e) {
+                    console.warn("Settings save failed", e);
+                }
+            }, 150);
+        };
+        if ('requestIdleCallback' in window) {
+            // @ts-ignore
+            settingsIdleId.current = window.requestIdleCallback(saveFn, { timeout: 500 });
+        } else {
+            saveFn();
+        }
     }
   }, [settings]);
 
@@ -2064,11 +2089,30 @@ export default function App() {
                           const surahObjects = surahList.filter(s => theme.surahIds.includes(s.number));
                           setFilteredSurahs(surahObjects);
                           setBrowseMode('surah');
-                          window.scrollTo({ top: document.getElementById('surah-grid')?.offsetTop || 0, behavior: 'smooth' });
+                          const target = document.getElementById('surah-grid')?.offsetTop || 0;
+                          if (prefersReducedMotion) {
+                            window.scrollTo({ top: target, behavior: 'auto' });
+                          } else {
+                            window.requestAnimationFrame(() => window.scrollTo({ top: target, behavior: 'smooth' }));
+                          }
                       }}
                       className="snap-start min-w-[140px] h-[180px] rounded-2xl relative overflow-hidden cursor-pointer group shadow-sm hover:shadow-md transition-all"
                     >
-                        <img src={theme.imageUrl} alt={theme.id} className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" loading="lazy" />
+                        <img 
+                          src={theme.imageUrl} 
+                          alt={theme.id} 
+                          className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" 
+                          loading="lazy"
+                          onError={(e) => {
+                              const img = e.currentTarget;
+                              img.style.display = 'none';
+                              const parent = img.parentElement as HTMLElement;
+                              if (parent) {
+                                parent.classList.add('bg-slate-800');
+                                parent.style.height = '120px';
+                              }
+                          }} 
+                        />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
                         <span className="absolute bottom-4 left-4 right-4 text-white font-bold text-sm leading-tight">
                             {t[theme.titleKey] || theme.id}
@@ -2344,7 +2388,7 @@ export default function App() {
             t={t}
             onComplete={() => {
                 setSettings(s => ({...s, onboardingComplete: true}));
-                window.location.reload(); 
+                localStorage.setItem('nurai_settings', JSON.stringify({...settings, onboardingComplete: true}));
             }}
           />
       )}
