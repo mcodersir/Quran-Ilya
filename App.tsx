@@ -772,6 +772,7 @@ const Onboarding = ({
     const [step, setStep] = useState(1);
     const [audioPreview, setAudioPreview] = useState<HTMLAudioElement | null>(null);
     const [isPlayingPreview, setIsPlayingPreview] = useState(false);
+    const [reciterMode, setReciterMode] = useState<'recommended' | 'all'>('recommended');
 
     const playPreview = (reciterId: string) => {
         if(audioPreview) {
@@ -797,10 +798,16 @@ const Onboarding = ({
 
     const filteredTranslations = translations.filter((tr: any) => tr.language === settings.uiLanguage);
     const finalTranslations = filteredTranslations.length > 0 ? filteredTranslations : translations.filter((tr: any) => tr.language === 'en');
-    
+
     // Filter Tafsirs: prioritize current language, but show all if few options
     const filteredTafsirs = tafsirs.filter((tf: any) => tf.language === settings.uiLanguage);
     const finalTafsirs = filteredTafsirs.length > 0 ? filteredTafsirs : tafsirs;
+    
+    const displayedReciters = reciterMode === 'all' 
+        ? reciters 
+        : reciters.filter((r: any) => RECOMMENDED_RECITER_IDS.includes(r.identifier)).concat(
+            reciters.filter((r: any) => !RECOMMENDED_RECITER_IDS.includes(r.identifier)).slice(0, 10)
+        );
 
     return (
         <div className="fixed inset-0 z-[100] bg-white dark:bg-dark-950 flex flex-col">
@@ -893,7 +900,7 @@ const Onboarding = ({
                                         {t.reciterModeAll}
                                     </button>
                                 </div>
-                                {getDisplayedReciters().map((rec: any) => (
+                                {displayedReciters.map((rec: any) => (
                                     <div
                                         key={rec.identifier}
                                         onClick={() => setSettings({...settings, reciterIdentifier: rec.identifier})}
