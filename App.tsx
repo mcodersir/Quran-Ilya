@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Play, Pause, SkipForward, SkipBack, Search, Settings, 
