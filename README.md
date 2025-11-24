@@ -1,0 +1,2 @@
+# Quran-Ilya
+A comprehensive Quran application featuring AI-powered search, Tafseer, continuous audio broadcasting, and multi-language support.
